@@ -1,0 +1,255 @@
+@page "/equipo"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@attribute [Authorize]
+@inject ApplicationDbContext Db
+
+<PageTitle>Equipo</PageTitle>
+
+<h1>Personal, disponibilidad y condiciones</h1>
+
+<div class="row g-4">
+    <div class="col-lg-4">
+        <EditForm Model="newMember" OnValidSubmit="AddMemberAsync">
+            <DataAnnotationsValidator />
+            <div class="card"><div class="card-body">
+                <h2 class="h5">Nuevo integrante</h2>
+                <div class="mb-3">
+                    <label class="form-label">Nombre completo</label>
+                    <InputText class="form-control" @bind-Value="newMember.FullName" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Bar principal</label>
+                    <InputSelect class="form-select" @bind-Value="newMember.HomeBarId">
+                        <option value="0">Selecciona un bar</option>
+                        @foreach (var bar in bars)
+                        {
+                            <option value="@bar.Id">@bar.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Área</label>
+                    <InputSelect class="form-select" @bind-Value="newMember.Department">
+                        <option value="@StaffDepartment.Barra">Barra</option>
+                        <option value="@StaffDepartment.Cocina">Cocina</option>
+                    </InputSelect>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Nivel</label>
+                    <InputSelect class="form-select" @bind-Value="newMember.Level">
+                        @foreach (var level in Enum.GetValues<ExperienceLevel>())
+                        {
+                            <option value="@level">@level</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="form-check mb-3">
+                    <InputCheckbox class="form-check-input" @bind-Value="newMember.RequiresCompanion" />
+                    <label class="form-check-label">No puede quedarse solo/a</label>
+                </div>
+                <div class="form-check mb-3">
+                    <InputCheckbox class="form-check-input" @bind-Value="newMember.CanWorkAtBothBars" />
+                    <label class="form-check-label">Excepción: puede trabajar en ambos bares</label>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Objetivo de horas semanales</label>
+                    <InputNumber class="form-control" @bind-Value="newMember.WeeklyTargetHours" />
+                </div>
+                <fieldset class="mb-3">
+                    <legend class="h6">Días que no desea trabajar</legend>
+                    @foreach (var day in WeekDays)
+                    {
+                        <div class="form-check form-check-inline">
+                            <InputCheckbox class="form-check-input" @bind-Value="newMember.Unavailable[day]" />
+                            <label class="form-check-label">@DayName(day)</label>
+                        </div>
+                    }
+                </fieldset>
+                <button class="btn btn-primary" type="submit">Guardar integrante</button>
+            </div></div>
+        </EditForm>
+
+        <EditForm class="mt-3" Model="newVacation" OnValidSubmit="AddVacationAsync">
+            <div class="card"><div class="card-body">
+                <h2 class="h5">Vacaciones</h2>
+                <InputSelect class="form-select mb-2" @bind-Value="newVacation.StaffMemberId">
+                    <option value="0">Selecciona un integrante</option>
+                    @foreach (var member in members)
+                    {
+                        <option value="@member.Id">@member.FullName</option>
+                    }
+                </InputSelect>
+                <label class="form-label small">Desde</label>
+                <InputDate class="form-control mb-2" @bind-Value="newVacation.StartDate" />
+                <label class="form-label small">Hasta</label>
+                <InputDate class="form-control mb-3" @bind-Value="newVacation.EndDate" />
+                <button class="btn btn-outline-primary" type="submit">Registrar vacaciones</button>
+                @if (!string.IsNullOrEmpty(vacationMessage))
+                {
+                    <p class="small mt-2 mb-0">@vacationMessage</p>
+                }
+            </div></div>
+        </EditForm>
+
+        <EditForm class="mt-3" Model="blockedPair" OnValidSubmit="BlockPairAsync">
+            <div class="card"><div class="card-body">
+                <h2 class="h5">Pareja no compatible</h2>
+                <p class="small text-muted">Por defecto, dos camareros pueden trabajar juntos. Registra aquí una excepción.</p>
+                <InputSelect class="form-select mb-2" @bind-Value="blockedPair.FirstId">
+                    <option value="0">Primer camarero</option>
+                    @foreach (var member in members)
+                    {
+                        <option value="@member.Id">@member.FullName</option>
+                    }
+                </InputSelect>
+                <InputSelect class="form-select mb-3" @bind-Value="blockedPair.SecondId">
+                    <option value="0">Segundo camarero</option>
+                    @foreach (var member in members)
+                    {
+                        <option value="@member.Id">@member.FullName</option>
+                    }
+                </InputSelect>
+                <button class="btn btn-outline-danger" type="submit" disabled="@(members.Count < 2)">Bloquear pareja</button>
+                @if (!string.IsNullOrEmpty(pairMessage))
+                {
+                    <p class="small mt-2 mb-0">@pairMessage</p>
+                }
+            </div></div>
+        </EditForm>
+    </div>
+    <div class="col-lg-8">
+        <h2 class="h4">Personal de barra y cocina</h2>
+        @if (members.Count == 0)
+        {
+            <p class="text-muted">Aún no hay camareros. Añade el primero para comenzar a asignar turnos.</p>
+        }
+        else
+        {
+            <table class="table align-middle"><thead><tr><th>Nombre</th><th>Bar</th><th>Área</th><th>Horas/semana</th><th>Disponibilidad</th></tr></thead>
+            <tbody>
+            @foreach (var member in members)
+            {
+                <tr>
+                    <td>@member.FullName<br /><small>@member.Level · @(member.RequiresCompanion ? "acompañado/a" : "sin condición")</small></td>
+                    <td>@(member.HomeBar?.Name ?? "Sin asignar") @(member.CanWorkAtBothBars ? "+ ambos" : "")</td>
+                    <td>@member.Department</td>
+                    <td>@member.WeeklyTargetHours</td>
+                    <td>@(member.UnavailableDays.Count == 0 ? "Sin restricciones" : string.Join(", ", member.UnavailableDays.Select(day => DayName(day.Day))))</td>
+                </tr>
+            }
+            </tbody></table>
+        }
+    </div>
+</div>
+
+@code {
+    private List<StaffMember> members = [];
+    private List<Bar> bars = [];
+    private NewMemberModel newMember = new();
+    private BlockedPairModel blockedPair = new();
+    private NewVacationModel newVacation = new();
+    private string? pairMessage;
+    private string? vacationMessage;
+    private static readonly DayOfWeek[] WeekDays = [DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday];
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task AddMemberAsync()
+    {
+        if (string.IsNullOrWhiteSpace(newMember.FullName) || newMember.HomeBarId == 0 || newMember.WeeklyTargetHours < 0) return;
+        var member = new StaffMember
+        {
+            FullName = newMember.FullName.Trim(),
+            Level = newMember.Level,
+            Department = newMember.Department,
+            HomeBarId = newMember.HomeBarId,
+            CanWorkAtBothBars = newMember.CanWorkAtBothBars,
+            WeeklyTargetHours = newMember.WeeklyTargetHours,
+            RequiresCompanion = newMember.RequiresCompanion
+        };
+        foreach (var day in newMember.Unavailable.Where(item => item.Value).Select(item => item.Key))
+        {
+            member.UnavailableDays.Add(new StaffUnavailableDay { Day = day });
+        }
+        Db.StaffMembers.Add(member);
+        await Db.SaveChangesAsync();
+        newMember = new();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        bars = await Db.Bars.OrderBy(bar => bar.Name).ToListAsync();
+        members = await Db.StaffMembers.Include(member => member.HomeBar).Include(member => member.UnavailableDays).OrderBy(member => member.FullName).ToListAsync();
+    }
+
+    private async Task AddVacationAsync()
+    {
+        if (newVacation.StaffMemberId == 0 || newVacation.EndDate < newVacation.StartDate)
+        {
+            vacationMessage = "Selecciona una persona y un intervalo de fechas válido.";
+            return;
+        }
+        Db.VacationPeriods.Add(new VacationPeriod { StaffMemberId = newVacation.StaffMemberId, StartDate = newVacation.StartDate, EndDate = newVacation.EndDate });
+        await Db.SaveChangesAsync();
+        vacationMessage = "Vacaciones registradas. El sistema impedirá asignarle turnos durante esas fechas.";
+        newVacation = new();
+    }
+
+    private async Task BlockPairAsync()
+    {
+        if (blockedPair.FirstId == 0 || blockedPair.SecondId == 0 || blockedPair.FirstId == blockedPair.SecondId)
+        {
+            pairMessage = "Selecciona dos camareros diferentes.";
+            return;
+        }
+
+        var first = Math.Min(blockedPair.FirstId, blockedPair.SecondId);
+        var second = Math.Max(blockedPair.FirstId, blockedPair.SecondId);
+        var rule = await Db.StaffCompatibilities.SingleOrDefaultAsync(item => item.StaffMemberId == first && item.CompatibleStaffMemberId == second);
+        if (rule is null)
+        {
+            Db.StaffCompatibilities.Add(new StaffCompatibility { StaffMemberId = first, CompatibleStaffMemberId = second, CanWorkTogether = false });
+        }
+        else
+        {
+            rule.CanWorkTogether = false;
+        }
+
+        await Db.SaveChangesAsync();
+        pairMessage = "La pareja quedó bloqueada para nuevas asignaciones.";
+        blockedPair = new();
+    }
+
+    private sealed class NewMemberModel
+    {
+        public string FullName { get; set; } = string.Empty;
+        public ExperienceLevel Level { get; set; } = ExperienceLevel.Medio;
+        public StaffDepartment Department { get; set; } = StaffDepartment.Barra;
+        public int HomeBarId { get; set; }
+        public bool CanWorkAtBothBars { get; set; }
+        public decimal WeeklyTargetHours { get; set; } = 40;
+        public bool RequiresCompanion { get; set; }
+        public Dictionary<DayOfWeek, bool> Unavailable { get; set; } = WeekDays.ToDictionary(day => day, _ => false);
+    }
+
+    private sealed class BlockedPairModel
+    {
+        public int FirstId { get; set; }
+        public int SecondId { get; set; }
+    }
+
+    private sealed class NewVacationModel
+    {
+        public int StaffMemberId { get; set; }
+        public DateOnly StartDate { get; set; } = DateOnly.FromDateTime(DateTime.Today);
+        public DateOnly EndDate { get; set; } = DateOnly.FromDateTime(DateTime.Today);
+    }
+
+    private static string DayName(DayOfWeek day) => day switch
+    {
+        DayOfWeek.Monday => "Lunes", DayOfWeek.Tuesday => "Martes", DayOfWeek.Wednesday => "Miércoles",
+        DayOfWeek.Thursday => "Jueves", DayOfWeek.Friday => "Viernes", DayOfWeek.Saturday => "Sábado", _ => "Domingo"
+    };
+}

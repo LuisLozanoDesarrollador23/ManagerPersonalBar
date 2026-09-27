@@ -1,0 +1,6 @@
+.dotnet/
+**/bin/
+**/obj/
+*.user
+*.suo
+src/ManagerPersonalBar.Web/App_Data/DataProtectionKeys/
