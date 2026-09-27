@@ -1,0 +1,27 @@
+﻿@page "/"
+
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+
+<PageTitle>Gestión de bares</PageTitle>
+
+<h1>Gestión de personal</h1>
+
+<p>Primera versión para planificar las entradas semanales de <strong>Bar 1</strong> y <strong>Bar 2</strong>.</p>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="card h-100"><div class="card-body">
+            <h2 class="h4">Horario semanal</h2>
+            <p>Las entradas se repiten de lunes a domingo; no se almacenan fechas ni horas de salida.</p>
+            <a class="btn btn-primary" href="horarios">Ver y planificar horarios</a>
+        </div></div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100"><div class="card-body">
+            <h2 class="h4">Equipo y reglas</h2>
+            <p>Da de alta camareros, indica su nivel y marca las personas que no pueden quedarse solas.</p>
+            <a class="btn btn-outline-primary" href="equipo">Gestionar equipo</a>
+        </div></div>
+    </div>
+</div>

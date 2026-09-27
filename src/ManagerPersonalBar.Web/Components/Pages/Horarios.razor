@@ -1,0 +1,57 @@
+@page "/horarios"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@attribute [Authorize]
+@inject ApplicationDbContext Db
+
+<PageTitle>Horario semanal</PageTitle>
+
+<h1>Entradas semanales</h1>
+<p class="text-muted">Cada fila es un grupo de llegada modificable para la próxima semana. La aplicación no guarda fecha ni hora de salida.</p>
+
+@if (requirements.Count == 0)
+{
+    <p>Cargando horarios iniciales…</p>
+}
+else
+{
+    @foreach (var bar in requirements.GroupBy(item => item.BarName))
+    {
+        <section class="mb-5">
+            <h2>@bar.Key</h2>
+            <div class="table-responsive"><table class="table table-striped align-middle">
+                <thead><tr><th>Día</th><th>Área</th><th>Entrada</th><th>Personas requeridas</th></tr></thead>
+                <tbody>
+                @foreach (var shift in bar.OrderBy(item => DayOrder(item.Day)).ThenBy(item => item.ArrivalTime))
+                {
+                    <tr><td>@DayName(shift.Day)</td><td>@shift.Department</td><td>@shift.ArrivalTime.ToString("HH:mm")</td><td>@shift.RequiredStaffCount</td></tr>
+                }
+                </tbody>
+            </table></div>
+        </section>
+    }
+}
+
+<div class="alert alert-info">
+    <strong>Reglas al asignar:</strong> una persona marcada como especial no puede estar sola; parejas bloqueadas no pueden compartir grupo; dos o más niveles bajos exigen al menos dos compañeros de nivel medio o alto.
+</div>
+
+@code {
+    private List<RequirementRow> requirements = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        requirements = await Db.ShiftRequirements.AsNoTracking()
+            .Include(shift => shift.Bar)
+            .Select(shift => new RequirementRow(shift.Bar.Name, shift.Day, shift.ArrivalTime, shift.RequiredStaffCount, shift.Department))
+            .ToListAsync();
+    }
+
+    private static int DayOrder(DayOfWeek day) => day == DayOfWeek.Sunday ? 7 : (int)day;
+    private static string DayName(DayOfWeek day) => day switch
+    {
+        DayOfWeek.Monday => "Lunes", DayOfWeek.Tuesday => "Martes", DayOfWeek.Wednesday => "Miércoles",
+        DayOfWeek.Thursday => "Jueves", DayOfWeek.Friday => "Viernes", DayOfWeek.Saturday => "Sábado", _ => "Domingo"
+    };
+    private sealed record RequirementRow(string BarName, DayOfWeek Day, TimeOnly ArrivalTime, int RequiredStaffCount, StaffDepartment Department);
+}
